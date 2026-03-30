@@ -43,8 +43,13 @@
 
 <main>
   {#if userData.ql}
-    {#each userData.ql as quiz}
-      <div class="w-4 h-4 bg-amber-300">{quiz.name}</div>
+    {#each userData.ql as quiz (quiz.id)}
+      <div class="bg-amber-300 p-8">{quiz.name}</div>
     {/each}
   {/if}
 </main>
+<style>
+  :global(body) {
+    background-color: var(--color-gray-800);
+  }
+</style>
