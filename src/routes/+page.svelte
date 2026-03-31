@@ -43,20 +43,24 @@
   })
 
 </script>
-<div class="w-screen h-screen grid grid-rows-[1fr_1fr_9fr] grid-cols-[1fr_9fr] gap-1">
-  <div class="hl border-b-0 flex justify-center items-center h-full">
+
+<div class="absolute bg-blue-950 shadow-blue-700 shadow-[0_0_10000px] blur-2xl -left-64 -top-64 w-2xl h-192 rounded-full -z-10"></div>
+
+<div class="[&>*]:hl [%>*]:backdrop-blur-xl w-screen h-screen grid grid-rows-[1fr_1fr_9fr] grid-cols-[1fr_9fr] gap-1">
+  <div class=" border-b-0 flex justify-center items-center h-full">
     <h1 class="text-blue-50">Quizmaker.gg</h1>
   </div>
-  <nav class="hl"></nav>
-  <div class="hl border-t-0"></div>
-  <div class="hl flex itmes-center p-4">
-    <button class="text-blue-50 hover:bg-zinc-700/10 cursor-pointer">+ Add quiz</button>
+  <nav></nav>
+  <div class="border-t-0"></div>
+  <div class="flex items-center gap-4 p-4">
+    <h2 class="text-blue-50">Quizzes</h2>
+    <button class="text-blue-50 hover:bg-blue-700 cursor-pointer shadow-2xl h-8 bg-blue-600">+ Add quiz</button>
   </div>
-  <aside class="hl"></aside>
-  <main class=" hl flex flex-wrap gap-1 p-4">
+  <aside class=""></aside>
+  <main class="  flex flex-wrap gap-1 p-4">
     {#if userData.ql}
       {#each userData.ql as quiz (quiz.id)}
-        <div class="text-blue-50 p-4 h-48 w-1/5 hl">
+        <div class="text-blue-50 p-4 h-48 w-1/5 ">
           {quiz.name}
             <br>
           {quiz.q.length + " questions"}</div>
@@ -65,14 +69,11 @@
   </main>
 </div>
 <style>
-  @layer components {
-    .hl {
-      border: 1px;
-      border-style: solid;
-      border-color: var(--color-blue-50);
-    }
+  /*Pending fix for class used by TailwindCSS*/
+  :global(.hl) {
+    @apply border border-blue-50 border-solid;
   }
   :global(body) {
-    background-color: var(--color-zinc-700);
+    background-color: var(--color-gray-950);
   }
 </style>
