@@ -71,7 +71,7 @@
 <style>
   /*Pending fix for class used by TailwindCSS*/
   :global(.hl) {
-    @apply border border-blue-50 border-solid;
+    /*@apply border border-blue-50 border-solid;*/
   }
   :global(body) {
     background-color: var(--color-gray-950);
