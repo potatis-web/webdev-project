@@ -5,7 +5,7 @@
 
   let canvas;
   let ctx;
-  let pAmount = 360;
+  // let pAmount = 360;
   let size = $state({ w: 0, h: 0 });
 
   const cx = $derived(size.w / 2);
