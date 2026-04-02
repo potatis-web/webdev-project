@@ -71,6 +71,7 @@
 <style>
   /*Pending fix for class used by TailwindCSS*/
   :global(.hl) {
+    content: "";
     /*@apply border border-blue-50 border-solid;*/
   }
   :global(body) {
