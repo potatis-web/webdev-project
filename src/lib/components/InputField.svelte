@@ -1,8 +1,8 @@
 <script>
   import InputText from "./InputText.svelte";
 
-  let {required = false, text = null, value = $bindable(), preset = ""} = $props();
-  let placeholder;
+  let {required = false, text, value = $bindable(), preset = "", placeholder = text} = $props();
+  
   
 
   const number = Math
@@ -17,12 +17,9 @@
       placeholder = "example@email.com";
       break;
     case "password":
-      if (!text)
-        text = "Password";
+      text = "Password";
       placeholder = "●●●●●●●●";
       break;
-    default:
-      placeholder = text;
   }
 </script>
 <div class="flex items-center justify-between">

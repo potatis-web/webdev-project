@@ -19,7 +19,7 @@
 	import { logIn, signUp, getCurrentUser } from '$lib/services/auth.js';
 	import { isDarkMode } from '$lib/stores/theme.js';
 	import InputField from '$lib/components/InputField.svelte';
-	import InputText from '$lib/components/InputText.svelte';
+
 
 	// Variables
 	let loginState = $state(true);
@@ -61,8 +61,6 @@
 	function getMode(state = loginState) {
 		return state ? 'Log In' : 'Sign Up';
 	}
-
-	function validateForm() {}
 
 	function makeNotification(text = "Placeholder", type = 'info') {
 		const obj = { text: text, id: Date.now(), type: type };

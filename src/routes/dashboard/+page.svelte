@@ -8,7 +8,8 @@
 	import Notification from '$lib/components/Notification.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import Modal from '$lib/components/Modal.svelte';
-
+	import Quiz from '$lib/components/Quiz.svelte';
+	import InputField from '$lib/components/InputField.svelte';
 	// Assets
 	import Plus from '$lib/components/Icons/Plus.svelte';
 	import Pen from '$lib/components/Icons/Pen.svelte';
@@ -18,7 +19,7 @@
 	import { onAuthStateChange, logOut } from '$lib/services/auth';
 	import { getMyQuizzes, createQuiz, deleteQuiz } from '$lib/services/quizManager';
 	import { isDarkMode } from '$lib/stores/theme';
-	import Quiz from '$lib/components/Quiz.svelte';
+
 
 	/*
 	// Structure
@@ -49,7 +50,7 @@
 	const buttons = [
 		{ text: 'Add quiz', func: () => {quizModal = true;}, icon: Plus, idx: 1 },
 		{ text: 'Edit quiz', func: () => {goto(resolve(`/quiz/${selectedQuiz.id}`));}, icon: Pen, idx: 2 },
-		{ text: 'Delete quiz', func: () => {if (selectedIndex) deleteModal = true; else makeNotification("No quiz selected", "info");}, icon: Cross, idx: 3 },
+		{ text: 'Delete quiz', func: () => {if (selectedIndex || selectedIndex === 0) deleteModal = true; else makeNotification("No quiz selected", "info");}, icon: Cross, idx: 3 },
 	];
 	const links = [
 		{ text: 'Home', path: '/' },
@@ -69,8 +70,6 @@
 	let accountPopup = $state(false);
 	let selectedIndex = $state();
 	let selectedQuiz = $derived(quizList[selectedIndex])
-	
-	
 
 	let qn = $state();
 	let qd = $state();
@@ -229,21 +228,9 @@
 				<span class="heading">Create quiz</span>
 			</div>
 
-			<div class="field-wrapper">
-				<label for="qn">Quiz name:</label>
-				<input id="qn" type="text" placeholder="New Quiz" class="input-field" bind:value={qn} />
-			</div>
+			<InputField text="Quiz name:" placeholder="New Quiz" bind:value={qn}/>
 
-			<div class="field-wrapper">
-				<label for="qd" class="">Quiz description:</label>
-				<textarea
-					id="qd"
-					placeholder="A short description goes here"
-					class="input-field resize-none"
-					rows="3"
-					bind:value={qd}
-				></textarea>
-			</div>
+			<InputField text="Quiz Description:" placeholder="A short description goes here" bind:value={qd}/>
 
 			<div class="field-wrapper">
 				<Button type="submit">Create</Button>

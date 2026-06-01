@@ -203,3 +203,72 @@ export async function getQuizById(quizId) {
     return null;
   }
 }
+/**
+ * Update a quiz and its questions/options
+ * Replaces all questions and options (deletes old ones, inserts new)
+ * @param {string} quizId - Quiz ID to update
+ * @param {object} quizData - { name, description, image_url, questions: [...] }
+ */
+export async function updateQuiz(quizId, quizData) {
+  try {
+    // 1. Update quiz metadata
+    const { error: updateError } = await supabase
+      .from('quizzes')
+      .update({
+        name: quizData.name,
+        description: quizData.description,
+        image_url: quizData.image_url,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', quizId);
+ 
+    if (updateError) throw updateError;
+ 
+    // 2. Delete all existing questions (options will cascade delete)
+    const { error: deleteError } = await supabase
+      .from('questions')
+      .delete()
+      .eq('quiz_id', quizId);
+ 
+    if (deleteError) throw deleteError;
+ 
+    // 3. Insert new questions
+    const questionsToInsert = quizData.questions.map((q, idx) => ({
+      quiz_id: quizId,
+      title: q.title,
+      order_index: idx,
+    }));
+ 
+    const { data: questionsResult, error: questionsError } = await supabase
+      .from('questions')
+      .insert(questionsToInsert)
+      .select();
+ 
+    if (questionsError) throw questionsError;
+ 
+    // 4. Insert new options
+    const optionsToInsert = [];
+    quizData.questions.forEach((q, qIdx) => {
+      q.options.forEach((opt, oIdx) => {
+        optionsToInsert.push({
+          question_id: questionsResult[qIdx].id,
+          text: opt.text,
+          value: opt.value,
+          order_index: oIdx,
+          is_correct: opt.is_correct || false,
+        });
+      });
+    });
+ 
+    const { error: optionsError } = await supabase
+      .from('options')
+      .insert(optionsToInsert);
+ 
+    if (optionsError) throw optionsError;
+ 
+    return { success: true, quizId };
+  } catch (error) {
+    console.error('Update quiz failed:', error);
+    return { success: false, error: error.message };
+  }
+}

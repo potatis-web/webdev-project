@@ -1,4 +1,7 @@
 <script>
+	import { slide } from "svelte/transition";
+
+
   let {
     children,
     func = () => {}, 
@@ -14,6 +17,7 @@
   type={type}
   aria-label={ariaLabel}
   disabled={disabled}
+  transition:slide
   class={`
     cursor-pointer shadow px-3 py-2 
     bg-soft-linen-100 dark:bg-dusk-blue-950

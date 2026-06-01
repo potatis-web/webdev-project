@@ -1,9 +1,25 @@
 <script>
+  // Svelte logic
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import Notification from '$lib/components/Notification.svelte';
+  import { goto } from '$app/navigation';
 
+
+	// Components
+	import Notification from '$lib/components/Notification.svelte';
+	import Modal from '$lib/components/Modal.svelte';
+	import Button from '$lib/components/Button.svelte';
+
+
+	// Services
+	import { getQuizById, updateQuiz } from '$lib/services/quizManager';
+	import InputField from '$lib/components/InputField.svelte';
+	import { fade } from 'svelte/transition';
+	
+
+
+	// Constants
 	const questionTemplate = {
 		title: 'Sample question?',
 		options: [
@@ -17,92 +33,73 @@
 			},
 		],
 	};
-	const saveDelay = 300;
-	let userData = $state();
-	let quizId = $state();
-	let quiz = $state();
-	let thumbnailFiles = $state();
-	let currentQuestionIndex = $state(0);
+
+	const optionTemplate = {
+		text: 'Option 1',
+		value: 'option1',
+		is_correct: false,
+	}
+
+	// Variables
+	let currentQuiz = $state();
+	let storedQuiz;
+	let questions = $derived(currentQuiz?.questions ?? []);
+	let currentQuestionIdx = $state(0);
+	let currentQuestion = $derived(questions[currentQuestionIdx]);
+	let currentOptions = $derived(currentQuestion?.options ?? [])
+	let hasChanges = $derived(JSON.stringify(currentQuiz) !== JSON.stringify(storedQuiz));
+
+
+
+	// State
 	let notifications = $state([]);
 	let modalOpen = $state(false);
-	let loaded = $state(false);
-	const warningFlags = {
-		name: false,
-		question: false,
-		emptyQuestionList: false,
-	};
-	let hasQuestions = true;
-
-	onMount(() => {
-		const storedUser = localStorage.getItem('user');
-
-		if (!storedUser) {
-			localStorage.setItem('user', JSON.stringify({ dick: 'aaa' }));
-		} else {
-			userData = JSON.parse(storedUser);
+	
+	// Constants
+	const btns = [
+		{
+			func: () => goto(resolve(`/play/${page.params.id}`)),
+			text: "Play"
+		},
+		{
+			func: () => 
+				currentQuiz.questions = [
+					...currentQuiz.questions, 
+					{ 
+						...structuredClone(questionTemplate),
+						id: `${currentQuiz.id}-${crypto.randomUUID()}` 
+						}
+					],
+				
+			text: "Add"
+		},
+		{
+			func: () => questions.splice(currentQuestionIdx, 1),
+			text: "Delete"
+		},
+		{
+			func: () => {
+				if (hasChanges) {
+					const confirmed = confirm('You have unsaved changes. Leave anyway?')
+					if (!confirmed) return;
+				}
+				goto(resolve('/dashboard'))},
+			text: "Dashboard"
 		}
-		// Get quiz id
+	]
+	onMount(async () => {
+		await getQuiz();
+		const handler = (event) => {
+			if (!hasChanges) return;
+			event.preventDefault(); 
+		}
 
-		quizId = page.params.id;
+		window.addEventListener('beforeunload', handler);
 
-		// Find in userData
-		quiz = userData.ql?.find(findQuiz);
-
-		loaded = true;
+		return () => {
+			window.removeEventListener('beforeunload', handler);
+		};
 	});
-
-	// For saving to localStorage
-	let saveTimeout;
-	$effect(() => {
-		if (!loaded) return;
-
-		const snapshot = $state.snapshot(userData);
-		clearTimeout(saveTimeout);
-		saveTimeout = setTimeout(() => {
-			localStorage.setItem('user', JSON.stringify(snapshot));
-		}, saveDelay);
-	});
-
-	function validateValues() {
-		if (!quiz) return;
-
-		// Check for missing quiz name
-		if (quiz.name === '' && !warningFlags.name) {
-			warningFlags.name = true;
-			makeNotification('Warning: Quiz name is empty. Please add one before exiting', 'warn');
-		} else if (quiz.name !== '' && warningFlags.name) {
-			warningFlags.name = false;
-		}
-
-		// Check for missing question title
-		const hasEmptyQuestion = quiz.q?.some((question) => !question?.title?.trim());
-		if (hasEmptyQuestion && !warningFlags.question) {
-			warningFlags.question = true;
-			makeNotification(
-				'Warning: One or more questions are empty. Please add question text before exiting',
-				'warn',
-			);
-		} else if (!hasEmptyQuestion && warningFlags.question) {
-			warningFlags.question = false;
-		}
-
-		// Check of missing question(s)
-		hasQuestions = !!quiz.q;
-
-		if (!hasQuestions && !warningFlags.emptyQuestionList) {
-			warningFlags.emptyQuestionList = true;
-			makeNotification(
-				'Warning: Quiz contains no questions. Please add one before exiting',
-				'warn',
-			);
-		} else if (hasQuestions && warningFlags.emptyQuestionList) {
-			warningFlags.emptyQuestionList = false;
-		}
-	}
-
-	function findQuiz(quiz) {
-		return quiz.id === quizId;
-	}
 
 	function makeNotification(text, type = 'info') {
 		const obj = { text: text, id: Date.now(), type: type };
@@ -110,70 +107,42 @@
 		setTimeout(() => notifications.shift(), 5000);
 	}
 
-	$effect(() => {
-		if (!thumbnailFiles || thumbnailFiles.length === 0 || !quiz) return;
-
-		const file = thumbnailFiles[0];
-		const reader = new FileReader();
-
-		reader.onload = (e) => {
-			quiz.image = e.target.result;
-		};
-		reader.readAsDataURL(file);
-	});
+	async function getQuiz() {
+		storedQuiz = await getQuizById(page.params.id);
+		if (storedQuiz === null) {
+			makeNotification("Something went wrong went fetching quiz", "error"); 
+			return;
+		}
+		currentQuiz = structuredClone(storedQuiz);
+	}
+	async function handleUpdateQuiz() {
+		if (!currentQuiz?.name.trim()) {
+			makeNotification("A quiz name is required! Please add one before saving", "warn");
+			return;
+		}
+		if (!questions.length) {
+			makeNotification("Quiz needs at least 1 question! Please add one before saving");
+			return;
+		}
+		const response = await updateQuiz(page.params.id, currentQuiz);
+		if (response.success) {
+			makeNotification("Successfully saved quiz!", "info");
+			await getQuiz();
+		} else {
+			makeNotification("Something went wrong when saving", "error");
+		}
+		
+	}
 </script>
 
-<!--svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions-->
-
-{#if quiz}
-	<title>{quiz.name ? quiz.name : 'Empty'} - Quizmaker.gg</title>
-	{#if modalOpen}
-		<div class="modal-backdrop"></div>
-		<div
-			class="fixed inset-0 z-9999 flex items-center justify-center"
-			onclick={() => {
-				modalOpen = false;
-			}}
-			onkeydown={(e) => {
-				if (e.key === 'Escape') modalOpen = false;
-			}}
-		>
-			<div
-				onclick={(e) => {
-					e.stopPropagation();
-				}}
-				role="dialog"
-				aria-modal="true"
-				tabindex="0"
-				class="relative h-9/10 w-1/2 rounded border-soft-linen-300 bg-soft-linen-100 text-dusk-blue-900 shadow"
-			>
-				<button
-					class="btn-primary absolute top-2 right-2"
-					onclick={() => {
-						modalOpen = false;
-					}}
-					aria-label="close-modal"
-				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke-width="1.5"
-						stroke="currentColor"
-						class="size-5"
-						aria-label="button"
-					>
-						<path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-					</svg>
-				</button>
-			</div>
-		</div>
-	{/if}
-	<main class="fixed inset-1 grid grid-cols-[300px_1fr] grid-rows-[1fr_275px] shadow">
+{#if currentQuiz}
+	<title>{currentQuiz.name ? currentQuiz.name : 'Empty'} - Quizmaker.gg</title>
+	
+	<main class="fixed inset-1 grid grid-cols-[400px_1fr] grid-rows-[1fr_275px] shadow">
 		<aside class="z-10 row-span-2 flex flex-col items-center gap-4 shadow">
 			<div class="grid h-40 w-full grid-cols-2 grid-rows-3">
 				<div class="row-span-2 flex items-center justify-around">
-					<h1 class="">{quiz.name}</h1>
+					<h1 class="">{currentQuiz.name}</h1>
 					<button aria-label="settings" class="btn-primary" onclick={() => (modalOpen = true)}>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
@@ -194,7 +163,7 @@
 					<div
 						class="relative flex h-full w-full items-center justify-center border-soft-linen-200"
 					>
-						<img src={quiz.image} alt="quiz thumbnail" class="h-full w-full object-fill" />
+						<img src={currentQuiz.image} alt="quiz thumbnail" class="h-full w-full object-fill bg-soft-linen-200" />
 						<label for="thumbnail" class="absolute right-1 bottom-1 cursor-pointer">
 							<!--"arrow-up-tray" on https://heroicons.com/ -->
 							<svg
@@ -217,68 +186,59 @@
 							type="file"
 							class="hidden"
 							accept="image/*"
-							bind:files={thumbnailFiles}
+
 						/>
 					</div>
 				</div>
 
 				<!--Sidebar controls for question management-->
 				<div
-					class="col-span-2 flex flex-row items-center justify-around border-b-soft-linen-200 p-8 shadow"
+					class="col-span-2 flex flex-row items-center justify-around border-b-soft-linen-200 p-8 shadow gap-2 *:w-2/5"
 				>
-					<button
-						class="btn-primary"
-						onclick={() => {
-							quiz.q = [
-								...quiz.q,
-								{ ...structuredClone(questionTemplate), id: `${quiz.id}-${crypto.randomUUID()}` },
-							];
-							validateValues();
-						}}
-					>
-						Add</button
-					>
-					<button
-						class="btn-primary"
-						onclick={() => {
-							quiz.q.pop();
-							validateValues();
-						}}>Delete</button
-					>
-					<a class="btn-primary" href={resolve('/dashboard')}>Dashboard</a>
+					{#each btns as btn (btn.text)}
+						<Button func={btn.func}>{btn.text}</Button>
+					{/each}
 				</div>
 			</div>
 
 			<!--Question sidebar-->
 			<div class="flex h-full w-full flex-col items-center gap-4 overflow-y-scroll p-4">
-				{#each quiz.q as question, i (question.id)}
+				{#each questions as question, i (question.id)}
 					<button
-						class={`btn-primary w-5/6 truncate p-6 ${question.title?.trim() ? '' : 'text-neutral-500'}`}
-						onclick={() => {
-							currentQuestionIndex = i;
-						}}>{question.title?.trim() ? question.title : '- Empty -'}</button
+						class={`border border-soft-linen-300 hover:bg-soft-linen-300 transition cursor-pointer active:scale-95 shadow w-7/8 text-xl flex justify-center items-center rounded-[999px] p-5 truncate ${question.title?.trim() ? '' : 'text-neutral-500'} ${currentQuestionIdx === i ? 'border-2' : ''}`}
+						onclick={() => {currentQuestionIdx = i}}>
+						{question.title?.trim() ? question.title : '- Empty -'}</button
 					>
 				{/each}
 			</div>
 		</aside>
 
-		<div class="flex flex-col items-center justify-around">
+		<div class="flex flex-col items-center justify-around ">
 			<!--Question title input-->
 			<input
-				placeholder="Add your question here!"
+				placeholder="Example: What's your favourite color?"
 				class="text-field w-9/10 border-b text-4xl"
-				oninput={validateValues}
-				bind:value={quiz.q[currentQuestionIndex].title}
+				bind:value={currentQuestion.title}
+
 			/>
 
 			<!--Options text/value input-->
-			<div class="h-full w-9/10 flex-wrap gap-4">
-				{#each quiz.q[currentQuestionIndex].options as option, i (i)}
-					<div class="inline-flex h-full w-1/2">
-						<input class="text-field" bind:value={option.text} />
-						<input class="text-field" bind:value={option.value} />
+			<div class="h-full w-9/10 flex flex-wrap gap-4">
+
+				{#each currentOptions as option, i (i)}
+					<div transition:fade class="relative flex justify-center flex-col grow rounded *:p-2 *:text-center gap-2 border border-soft-linen-300 p-2 " >
+						<input class=" border-soft-linen-300 shadow border rounded" bind:value={option.text} />
+						<input class="text-dusk-blue-800/70 border-soft-linen-300 shadow border rounded" bind:value={option.value} />
+						<button class="absolute right-0 bottom-0" onclick={() => currentOptions.splice(i,1)}>
+							<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+								<path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+							</svg>
+						</button>
 					</div>
 				{/each}
+				{#if currentQuestion.options.length < 4}
+					<button class="grow border min-w-1/3 *:p-2 text-center flex justify-center bg-black/10 transition items-center" onclick={() => currentQuestion.options.push(optionTemplate)}>+</button>
+				{/if}
 			</div>
 		</div>
 		<div class=""></div>
@@ -291,9 +251,10 @@
 			<div
 				class="h-24 w-24 animate-spin rounded-full border-16 border-dry-sage-200 border-t-dusk-blue-500"
 			></div>
+			
 			<h1 class="text-2xl">Quiz may not be available right now. Refresh or try again later.</h1>
-			<h2>QuizID: <span class="text-dusk-blue-600">{quizId?.slice(5)}</span></h2>
-			<a href={resolve('/dashboard')} class="btn-primary">Back to dashboard</a>
+			<h2>QuizID: <span class="text-dusk-blue-600">{page.params.id}</span></h2>
+			<Button func={() => {goto(resolve('/dashboard'))}}>Back to Dashboard</Button>
 		</div>
 	</main>
 {/if}
@@ -304,3 +265,23 @@
 		<Notification text={not.text} type={not.type} />
 	{/each}
 </aside>
+
+{#if hasChanges}
+	<Button class="fixed left-4 bottom-4" func={handleUpdateQuiz}>
+		<div class="relative inline-flex">
+			<span>●</span>
+			<span class="absolute animate-ping">●</span>
+		</div>
+		<span>Save Changes</span>
+	</Button>
+{/if}
+
+<!--Modal-->
+{#if modalOpen}
+	<Modal bind:modalState={modalOpen}>
+		<h1 class="heading">Quiz details</h1>
+		<InputField text="Quiz name:" bind:value={currentQuiz.name} placeholder="My quiz about countries"/>
+		<InputField text="Quiz description:" bind:value={currentQuiz.description} placeholder="Test yourself on the world!" />
+		<InputField text="Image url:" bind:value={currentQuiz.image} />
+	</Modal>
+{/if}
